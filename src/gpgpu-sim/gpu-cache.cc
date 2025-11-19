@@ -236,6 +236,55 @@ void tag_array::remove_pending_line(mem_fetch *mf) {
   }
 }
 
+// find victim using SRRIP within a given set; returns index (global index) or -1 on failure
+int tag_array::find_victim_srrip(unsigned set_index,
+                                 mem_access_sector_mask_t mask) const {
+  unsigned base = set_index * m_config.m_assoc;
+
+  // we must only consider the same eligible lines as current logic:
+  // not reserved, and (not modified or dirty percentage constraint)
+  float dirty_line_percentage =
+      ((float)m_dirty / (m_config.m_nset * m_config.m_assoc)) * 100;
+
+  while (true) {
+    // search for any eligible block with rrpv == MAX_RRPV
+    for (unsigned way = 0; way < m_config.m_assoc; ++way) {
+      unsigned idx = base + way;
+      cache_block_t *line = m_lines[idx];
+
+      if (line->is_reserved_line()) continue; // skip reserved
+
+      if (line->is_modified_line() && dirty_line_percentage < m_config.m_wr_percent) {
+        // we are not allowed to evict modified lines below threshold
+        continue;
+      }
+      // line is eligible
+      if (line->m_rrpv == SRRIP_MAX_RRPV) {
+        return (int)idx;
+      }
+    }
+    // if none found, increment RRPV of eligible lines (but cap at SRRIP_MAX_RRPV)
+    bool any_incremented = false;
+    for (unsigned way = 0; way < m_config.m_assoc; ++way) {
+      unsigned idx = base + way;
+      cache_block_t *line = m_lines[idx];
+      if (line->is_reserved_line()) continue;
+      if (line->is_modified_line() && dirty_line_percentage < m_config.m_wr_percent) {
+        continue;
+      }
+      if (line->m_rrpv < SRRIP_MAX_RRPV) {
+        line->m_rrpv++;
+        any_incremented = true;
+      }
+    }
+    if (!any_incremented) {
+      // nothing to increment - all are reserved or at max already but not matched? return fail
+      return -1;
+    }
+    // loop and try again
+  }
+}
+
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
                                            bool probe_mode) const {
@@ -325,6 +374,14 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = invalid_line;
   } else if (valid_line != (unsigned)-1) {
     idx = valid_line;
+  } else if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
+    int victim = find_victim_srrip(set_index, mask);
+    if (victim >= 0) {
+      idx = (unsigned)victim;
+    } else {
+      // no victim found -> emulate reservation fail
+      return RESERVATION_FAIL;
+    }
   } else
     abort();  // if an unreserved block exists, it is either invalid or
               // replaceable
@@ -354,6 +411,12 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
       m_pending_hit++;
     case HIT:
       m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
+
+      if (m_config.m_replacement_policy == SRRIPHP) {
+        m_lines[idx]->m_rrpv = 0;
+      } else if (m_config.m_replacement_policy == SRRIPFP && m_lines[idx]->m_rrpv > 0) {
+        m_lines[idx]->m_rrpv--;
+      }
       break;
     case MISS:
       m_miss++;
@@ -370,6 +433,11 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
         }
         m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr),
                                time, mf->get_access_sector_mask());
+
+        // If SRRIP is enabled, initialize insertion RRPV
+        if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
+          m_lines[idx]->m_rrpv = SRRIP_INSERT_RRPV;
+        }
       }
       break;
     case SECTOR_MISS:
@@ -380,6 +448,11 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
         bool before = m_lines[idx]->is_modified_line();
         ((sector_cache_block *)m_lines[idx])
             ->allocate_sector(time, mf->get_access_sector_mask());
+        
+        // Same as above
+        if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
+          m_lines[idx]->m_rrpv = SRRIP_INSERT_RRPV;
+        }
         if (before && !m_lines[idx]->is_modified_line()) {
           m_dirty--;
         }
