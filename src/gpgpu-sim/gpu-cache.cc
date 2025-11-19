@@ -374,7 +374,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = invalid_line;
   } else if (valid_line != (unsigned)-1) {
     idx = valid_line;
-  } else if (m_config.m_replacement_policy == SRRIP) {
+  } else if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
     int victim = find_victim_srrip(set_index, mask);
     if (victim >= 0) {
       idx = (unsigned)victim;
@@ -412,9 +412,10 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
     case HIT:
       m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
 
-      // SRRIP: on hit, promote (set RRPV = 0)
-      if (m_config.m_replacement_policy == SRRIP) {
-        m_lines[idx]->m_rrpv = 0; // We're using SRRIP-HP for now
+      if (m_config.m_replacement_policy == SRRIPHP) {
+        m_lines[idx]->m_rrpv = 0;
+      } else if (m_config.m_replacement_policy == SRRIPFP && m_lines[idx]->m_rrpv > 0) {
+        m_lines[idx]->m_rrpv--;
       }
       break;
     case MISS:
@@ -434,7 +435,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
                                time, mf->get_access_sector_mask());
 
         // If SRRIP is enabled, initialize insertion RRPV
-        if (m_config.m_replacement_policy == SRRIP) {
+        if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
           m_lines[idx]->m_rrpv = SRRIP_INSERT_RRPV;
         }
       }
@@ -449,7 +450,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
             ->allocate_sector(time, mf->get_access_sector_mask());
         
         // Same as above
-        if (m_config.m_replacement_policy == SRRIP) {
+        if (m_config.m_replacement_policy == SRRIPHP || m_config.m_replacement_policy == SRRIPFP) {
           m_lines[idx]->m_rrpv = SRRIP_INSERT_RRPV;
         }
         if (before && !m_lines[idx]->is_modified_line()) {

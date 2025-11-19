@@ -522,7 +522,7 @@ struct sector_cache_block : public cache_block_t {
   }
 };
 
-enum replacement_policy_t { LRU, FIFO, SRRIP };
+enum replacement_policy_t { LRU, FIFO, SRRIPHP, SRRIPFP };
 
 enum write_policy_t {
   READ_ONLY,
@@ -614,7 +614,10 @@ class cache_config {
         m_replacement_policy = FIFO;
         break;
       case 'S':
-        m_replacement_policy = SRRIP;
+        m_replacement_policy = SRRIPHP;
+        break;
+      case 'Z':
+        m_replacement_policy = SRRIPFP;
         break;
       default:
         exit_parse_error();
