@@ -366,6 +366,11 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       }
     }
   }
+  if (m_config.m_replacement_policy == LRU) {
+    printf("LRU Policy - evicted index: %u", idx);
+  } else if (m_config.m_replacement_policy == FIFO) {
+    printf("FIFO Policy - evicted index: %u", idx);
+  }
   if (all_reserved) {
     assert(m_config.m_alloc_policy == ON_MISS);
     return RESERVATION_FAIL;  // miss and not enough space in cache to allocate
@@ -380,6 +385,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     int victim = find_victim_srrip(set_index, mask);
     if (victim >= 0) {
       idx = (unsigned)victim;
+      printf("SRRIP Policy - evicted index: %u", idx);
     } else {
       // no victim found -> emulate reservation fail
       return RESERVATION_FAIL;
