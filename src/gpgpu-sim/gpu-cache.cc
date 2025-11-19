@@ -351,13 +351,11 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
           // valid line : keep track of most appropriate replacement candidate
           if (m_config.m_replacement_policy == LRU) {
             if (line->get_last_access_time() < valid_timestamp) {
-              printf("LRU Policy - last_access_time: %llu", line->get_last_access_time());
               valid_timestamp = line->get_last_access_time();
               valid_line = index;
             }
           } else if (m_config.m_replacement_policy == FIFO) {
             if (line->get_alloc_time() < valid_timestamp) {
-              printf("FIFO Policy - last_alloc_time: %llu", line->get_alloc_time());
               valid_timestamp = line->get_alloc_time();
               valid_line = index;
             }
