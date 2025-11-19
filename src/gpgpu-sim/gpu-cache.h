@@ -44,6 +44,13 @@
 
 #define MAX_DEFAULT_CACHE_SIZE_MULTIBLIER 4
 
+// SRRIP config constants
+// 2-bit RRPV counters -> MAX_RRPV = 3 (0..3)
+// Insert at INSERT_RRPV = MAX_RRPV - 1  (i.e. 2)
+#define SRRIP_RRPV_BITS 2
+#define SRRIP_MAX_RRPV ((1 << SRRIP_RRPV_BITS) - 1)
+#define SRRIP_INSERT_RRPV (SRRIP_MAX_RRPV - 1)
+
 enum cache_block_state { INVALID = 0, RESERVED, VALID, MODIFIED };
 
 enum cache_request_status {
@@ -126,6 +133,7 @@ struct cache_block_t {
   cache_block_t() {
     m_tag = 0;
     m_block_addr = 0;
+    m_rrpv = SRRIP_MAX_RRPV;
   }
 
   virtual void allocate(new_addr_type tag, new_addr_type block_addr,
@@ -167,6 +175,9 @@ struct cache_block_t {
 
   new_addr_type m_tag;
   new_addr_type m_block_addr;
+
+  // SRRIP RRPV counter (per-line). kept in base so line/sector both have it.
+  unsigned char m_rrpv;
 };
 
 struct line_cache_block : public cache_block_t {
@@ -511,7 +522,7 @@ struct sector_cache_block : public cache_block_t {
   }
 };
 
-enum replacement_policy_t { LRU, FIFO };
+enum replacement_policy_t { LRU, FIFO, SRRIP };
 
 enum write_policy_t {
   READ_ONLY,
@@ -601,6 +612,9 @@ class cache_config {
         break;
       case 'F':
         m_replacement_policy = FIFO;
+        break;
+      case 'S':
+        m_replacement_policy = SRRIP;
         break;
       default:
         exit_parse_error();
@@ -949,6 +963,8 @@ class tag_array {
   tag_array(cache_config &config, int core_id, int type_id);
   ~tag_array();
 
+  int find_victim_srrip(unsigned set_index,
+                                 mem_access_sector_mask_t mask) const;
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_fetch *mf, bool is_write,
                                   bool probe_mode = false) const;
