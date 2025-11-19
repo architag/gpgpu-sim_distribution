@@ -614,6 +614,7 @@ class cache_config {
         m_replacement_policy = FIFO;
         break;
       case 'S':
+        printf("SRRIP");
         m_replacement_policy = SRRIP;
         break;
       default:
