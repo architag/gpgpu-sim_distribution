@@ -369,11 +369,11 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
   } else if (m_config.m_replacement_policy == FIFO) {
     printf("FIFO Policy - evicted index: %u\n", idx);
   }
-  if (all_reserved) {
-    assert(m_config.m_alloc_policy == ON_MISS);
-    return RESERVATION_FAIL;  // miss and not enough space in cache to allocate
-                              // on miss
-  }
+  // if (all_reserved) {
+  //   assert(m_config.m_alloc_policy == ON_MISS);
+  //   return RESERVATION_FAIL;  // miss and not enough space in cache to allocate
+  //                             // on miss
+  // }
 
   if (invalid_line != (unsigned)-1) {
     idx = invalid_line;
@@ -388,6 +388,10 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       // no victim found -> emulate reservation fail
       return RESERVATION_FAIL;
     }
+  } else if (all_reserved){
+    assert(m_config.m_alloc_policy == ON_MISS);
+    return RESERVATION_FAIL;  // miss and not enough space in cache to allocate
+                              // on miss
   } else
     abort();  // if an unreserved block exists, it is either invalid or
               // replaceable
