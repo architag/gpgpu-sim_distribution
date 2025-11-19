@@ -368,6 +368,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     printf("LRU Policy - evicted index: %u\n", idx);
   } else if (m_config.m_replacement_policy == FIFO) {
     printf("FIFO Policy - evicted index: %u\n", idx);
+  } else if (m_config.m_replacement_policy == SRRIP) {
+    printf("SRRIP Policy - valid line: %u; invalid line: %u\n", valid_line, invalid_line);
   }
   // if (all_reserved) {
   //   assert(m_config.m_alloc_policy == ON_MISS);
